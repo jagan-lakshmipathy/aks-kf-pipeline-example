@@ -11,3 +11,20 @@ While we don't expect you to have reviewed our earlier work for you to follow al
 We refer you to learn about Azure Kubernetes Service (AKS) from [here](https://learn.microsoft.com/en-us/azure/aks/learn/quick-kubernetes-deploy-portal?tabs=azure-cli). Also we refer to [here](https://learn.microsoft.com/en-us/azure/aks/learn/quick-kubernetes-deploy-portal?tabs=azure-cli) on how to request vCPU quotas from azure portal. If you would like to learn about different compute options in Azure please review this [link](https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/overview?tabs=breakdownseries%2Cgeneralsizelist%2Ccomputesizelist%2Cmemorysizelist%2Cstoragesizelist%2Cgpusizelist%2Cfpgasizelist%2Chpcsizelist). In this example we will use two types of vCPUs Standard\_D4ds\_v5 and Standard\_NC40ads\_H100\_v5. We will use the D4ds\_v5 CPUs to run the kubernetes system workloads and NC40ads\_H100\_v5 CPUs to run the GPU workloads. Steps involved in requesting any other vCPUs with GPU will be very similar. In our example we run a simple Machine Learning example on the GPU.  We assume you have a reasonable understanding of Azure Cloud Platform. We are also assume you have a fairly good understanding of Kubernetes. Please do find the Kubernetes reading material from [here](https://kubernetes.io/docs/setup/). We assume that you also have a fairly good working knowledge of github. Please clone this [repo](www.github.com) to your local. Install kubectl, kubernetes cli tool, from [here](https://kubernetes.io/docs/tasks/tools/).
 
 We will be using MacOS to run the kubernetes commands and Azure CLI commands using bash shell. You can follow along with your prefered host, operating system and shell.
+
+### 3. What's in this Repo?
+This repo has a docker file that builds from a PyTorch 24.07 [base iamge](https://docs.nvidia.com/deeplearning/frameworks/pytorch-release-notes/rel-24-07.html) from NVidia and runs a simple Kubeflow pipeline with a simple component. This simple pipeline is provided in a python file component\_with\_optional\_inputs.py. This python file we grabbed it from Kubeflow [samples](https://github.com/kubeflow/pipelines/blob/master/samples/v2/component_with_optional_inputs.py). We have also checked in a manifest pipeline-example.yaml that we used to deploy the pipeline.
+
+
+### 4. Authenticate Your Console
+We assume that the kubernetes cluster is up and running. We will do the following two steps to prepare our console to be authenticated to interact with the AKS cluster remotely.
+
+1. Login to your Azure Portal and make sure the kubernetes cluster is up and running.You can also check the cluster from your bash console. For that to work we need to have the *kubectl* working. So go to Step 2, before you try out any *kubectl* commands.
+
+2. In order to issue kubectl commands to control AKS cluster from your local console we need to merge the credentials with the local kube config. Kubernetes config file is typically located under /Users/\<username\>/.kube/config in MacOS. The following azure cli command would merge the config. The second command lets you see the running pods in the cluster:
+
+```
+    bash> az aks get-credentials --resource-group <resource-group-name> --name <aks-cluster-name>
+    bash> kubectl get pods --watch
+
+```
