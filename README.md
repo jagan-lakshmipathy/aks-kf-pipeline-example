@@ -13,7 +13,7 @@ We refer you to learn about Azure Kubernetes Service (AKS) from [here](https://l
 We will be using MacOS to run the kubernetes commands and Azure CLI commands using bash shell. You can follow along with your prefered host, operating system and shell.
 
 ### 3. What's in this Repo?
-This repo has a docker file that builds from a PyTorch 24.07 [base iamge](https://docs.nvidia.com/deeplearning/frameworks/pytorch-release-notes/rel-24-07.html) from NVidia and runs a simple Kubeflow pipeline with a simple component. This simple pipeline is provided in a python file component\_with\_optional\_inputs.py. This python file we grabbed it from Kubeflow [samples](https://github.com/kubeflow/pipelines/blob/master/samples/v2/component_with_optional_inputs.py). We have also checked in a manifest pipeline-example.yaml that we used to deploy the pipeline.
+This repo has a docker file that builds from a PyTorch 24.07 [base iamge](https://docs.nvidia.com/deeplearning/frameworks/pytorch-release-notes/rel-24-07.html) from NVidia and runs a simple Kubeflow pipeline with a simple component. This simple pipeline is provided in a python file component\_with\_optional\_inputs.py. This python file we grabbed it from Kubeflow [samples](https://github.com/kubeflow/pipelines/blob/master/samples/v2/component_with_optional_inputs.py). We have also checked in a manifest pipeline-example.yaml that we used to deploy the pipeline.  We discuss these files in detail in our coming sections here.
 
 
 ### 4. Authenticate Your Console
@@ -26,5 +26,27 @@ We assume that the kubernetes cluster is up and running. We will do the followin
 ```
     bash> az aks get-credentials --resource-group <resource-group-name> --name <aks-cluster-name>
     bash> kubectl get pods --watch
+
+```
+
+
+
+### 5. Register Microsoft Container Service
+We will issue the following Azure CLI commands to register the container service.
+```
+    bash>   az extension add --name aks-preview
+    bash>   az extension update --name aks-preview
+
+    bash>   az feature register --namespace "Microsoft.ContainerService" --name "GPUDedicatedVHDPreview"
+    bash>   az feature show --namespace "Microsoft.ContainerService" --name "GPUDedicatedVHDPreview"
+    bash>   az provider register --namespace Microsoft.ContainerService
+
+```
+### 6. Add nodepool to AKS Cluster
+
+We wukk add a nodepool with 3 nodes(check Azure documentation to see the Azure's latest offering). You can choose any GPU loaded vCPU from Azure offering that you are eligible to request as per your quota requirements. I tried these GPU loaded nodes Standard\_NC24s\_v3, and Standard\_NC40ads\_H100\_v5 from the NCv3-series and NCads H100 v5-series familes respectively. But the following command adds 3 40 core vCPU with 1 H100 GPU each. We can adjust the min and max counts depending on your workload. We picked a min of 1 and max of 3. This command also taints the nodes with key and value with 'sku' and 'gpu' respectively.
+
+```
+    bash> az aks nodepool add --resource-group <name-of-resource-group> --cluster-name <cluster-name> --name <nodepool-name> --node-count 2 --node-vm-size Standard_NC40ads_H100_v5 --node-taints sku=gpu:NoSchedule --aks-custom-headers UseGPUDedicatedVHD=true --enable-cluster-autoscaler --min-count 1 --max-count 3
 
 ```
