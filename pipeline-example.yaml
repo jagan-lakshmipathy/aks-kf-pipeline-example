@@ -1,0 +1,46 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pipeline-example
+  namespace: kubeflow
+spec:
+  template:
+    metadata:
+      labels:
+        kubeflow-pipelines-api-token: "true"
+    spec:
+      containers:
+      - name: pytorch-container
+        image: jaganacr09212024.azurecr.io/kubeflow/pipeline-example:latest
+        imagePullPolicy: Always
+        #command: ["torchrun"]
+        #args: 
+        #  - "--nnodes=2" # Number of nodes
+        #  - "--nproc_per_node=1" # Number of GPUs per node
+        #  - "/opt/msg_test/src/msg_test.py"
+        #  - "--backend=nccl"
+        resources:
+          limits:
+            nvidia.com/gpu: 1
+        volumeMounts:
+          - mountPath: /var/run/secrets/kubeflow/pipelines
+            name: volume-kf-pipeline-token
+            readOnly: true
+      volumes:
+        - name: volume-kf-pipeline-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: token
+                  expirationSeconds: 7200
+                  audience: pipelines.kubeflow.org
+      tolerations:
+      - key: "sku"
+        operator: "Equal"
+        value: "gpu"
+        effect: "NoSchedule"
+      restartPolicy: OnFailure
+  backoffLimit: 4
+  completions: 1
+  parallelism: 2
+
