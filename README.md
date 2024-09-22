@@ -44,9 +44,45 @@ We will issue the following Azure CLI commands to register the container service
 ```
 ### 6. Add nodepool to AKS Cluster
 
-We wukk add a nodepool with 3 nodes(check Azure documentation to see the Azure's latest offering). You can choose any GPU loaded vCPU from Azure offering that you are eligible to request as per your quota requirements. I tried these GPU loaded nodes Standard\_NC24s\_v3, and Standard\_NC40ads\_H100\_v5 from the NCv3-series and NCads H100 v5-series familes respectively. But the following command adds 3 40 core vCPU with 1 H100 GPU each. We can adjust the min and max counts depending on your workload. We picked a min of 1 and max of 3. This command also taints the nodes with key and value with 'sku' and 'gpu' respectively.
+As mentioned before, we don't need a GPU for this example. However, for complex workloads we may need GPUs. So, we create a nodepool with 3 nodes(check Azure documentation to see the Azure's latest offering). You can choose any GPU loaded vCPU from Azure offering that you are eligible to request as per your quota requirements. I tried these GPU loaded nodes Standard\_NC24s\_v3, and Standard\_NC40ads\_H100\_v5 from the NCv3-series and NCads H100 v5-series familes respectively. But the following command adds 3 40 core vCPU with 1 H100 GPU each. We can adjust the min and max counts depending on your workload. We picked a min of 1 and max of 3. This command also taints the nodes with key and value with 'sku' and 'gpu' respectively.
 
 ```
     bash> az aks nodepool add --resource-group <name-of-resource-group> --cluster-name <cluster-name> --name <nodepool-name> --node-count 2 --node-vm-size Standard_NC40ads_H100_v5 --node-taints sku=gpu:NoSchedule --aks-custom-headers UseGPUDedicatedVHD=true --enable-cluster-autoscaler --min-count 1 --max-count 3
 
 ```
+
+### 7. Create a Azure Container Registry
+We need to store the container image of the Simple Pipeline in component\_with\_optional\_inputs.py. We create an Azure Container Registry (ACR) to push your image as follows.
+
+```
+    bash> az acr create --name <name-of-acr> --resource-group <resource-group-associated> --sku basic
+```
+
+### 8. Login to ACR
+Now lets login to the ACR before you can upload any images to ACR.
+
+```
+    bash> az acr login --name <name-of-acr>
+```
+
+### 9. Create Workload Image Locally
+Let's create a docker images that we would like to run as a GPU workload. This repo contains a dockerfile named Dockerfile.ce. At line # 4, this docker file pulls a PyTorch container base image from NVIDIA. Tag 24.07-py3 is the latest available at the time of this writing. This container image contains the complete source of the version of PyTorch in /opt/pytorch. It is a prebuild and installed in the default environment (/usr/local/lib/python3.10/dist-packages/torch). This container also includes the following pacakges: (a) Pyton 3.10, (b) CUDA, (c) NCCL backend, (d) JupyterLab and beyond. Please look at this link for more details [here](https://docs.nvidia.com/deeplearning/frameworks/pytorch-release-notes/rel-24-07.html). This docker file also copies component\_with\_optional\_inputs.py from current directory to working directory. The component\_with\_optional\_inputs.py is a python file with a simple pipeline with a simple component. At line # 15 in the docker file we execute this python file. Please free to review the python file. In the main, we execute the pipeline at line # 45 using the Kubeflow Pipeline client.
+
+```
+    bash> docker build  --platform="linux/amd64"  -t pipeline-example:1.0 .
+```
+
+### 10. Tag and push the image to ACR
+Now that we have created an image in the local registry, we need to push this image to the ACR before it can be run in the AKS. First, we need to tag the image and then we push the tagged image to an already created ACR. The following are the commands in that order.
+```
+    bash> docker tag pipline-example:1.0 <acr-name>.azurecr.io/pipeline-example:latest
+    bash> docker push <acr-name>.azurecr.io/pipeline-example:latest
+```
+
+### 11. Attach the ACR to the AKS Cluster
+Now that we have pushed the image to the ACR, we have to now attach that ACR to the cluster so that our job can access the ACR to pull the image from. We use the following command.
+
+```
+    bash> az aks update --name <aks-cluster-name> --resource-group <aks-rg-name>  --attach-acr <name-of-acr-to-attach>
+```
+
