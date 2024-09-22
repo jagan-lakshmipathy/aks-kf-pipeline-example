@@ -85,4 +85,38 @@ Now that we have pushed the image to the ACR, we have to now attach that ACR to 
 ```
     bash> az aks update --name <aks-cluster-name> --resource-group <aks-rg-name>  --attach-acr <name-of-acr-to-attach>
 ```
+### 12. Job Manifest
+In this repo, we have provided a manifest named pipeline-example.yaml. The image is specfied in the path Job.spec.template.spec.image. Two things are worth mentioning in this manifest. Kubeflow pipeline requires root authentication. See [here](https://www.kubeflow.org/docs/components/pipelines/concepts/pipeline-root/) to understand the concepts of pipeline root. We can adjust the definition of any Pod to mount ServiceAccount token volume that can be used to authenticate with the Kubeflow Pipelines API [(see here)](https://www.deploykf.org/user-guides/access-kubeflow-pipelines-api/). We have defined Job.spec.template.spec.volumes and  Job.spec.template.spec.containers.volumeMounts to project the serviceAccountToken.
+
+### 13. Install Kubeflow Training Operator
+We will install the Pipeline in AKS using the following commands. We are installing the Pipline version 2.3.0. The third step is different from the Kubeflow Pipline installation step outlined in the documentation. This change is necessary as we are runnng AKS (not GKS). We are using the platform agnostic changes see [here](https://github.com/kubeflow/pipelines/issues/9546).
+```
+bash> export PIPELINE_VERSION=2.3.0
+bash> kubectl apply --kustomize="github.com/kubeflow/pipelines/manifests/kustomize/cluster-scoped-resources?ref=${PIPELINE_VERSION}"
+bash> kubectl wait crd/applications.app.k8s.io --for=condition=established --timeout=60s
+bash> kubectl apply --kustomize="github.com/kubeflow/pipelines/manifests/kustomize/env/platform-agnostic?ref=${PIPELINE_VERSION}"
+```
+
+### 14. Deploy PyTorchJob
+We deploy the job as follows. This may take a few minutes depending on how long it takes to initialize the pods. Sometimes, some pods may fail in the process but they will self heal after sometime. 
+
+```
+    kubectl apply -f pipeline-example.yaml
+```
+
+### 15. Port forwarding
+Issue the following command to the port forwarding of UI. Use your browser to check if the UI is running. 
+
+```
+    bash> kubectl port-forward -n kubeflow svc/ml-pipeline-ui 8080:80
+
+```
+### 16. Job Monitoring Commands:
+```
+    kubectl get pods --watch
+    kubectl logs <pod-id>
+    kkubectl describe pod <pod-id>
+```
+### 17. Tear-down
+Once you are successfully done testing this code, make sure to cleanup the jobs in AKS. Finally, don't forget to tear-down the AKS cluster to avoid incurring unnecessary billing costs.
 
