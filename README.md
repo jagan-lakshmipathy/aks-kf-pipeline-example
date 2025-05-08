@@ -1,6 +1,6 @@
 # A simple Kubeflow Pipeline example
 ###### Jagan Lakshmipathy 
-###### 09/22/2024
+###### 05/08/2025
 
 ### 1. Introduction
 In one of our earlier [work](https://github.com/jagan-lakshmipathy/aks-kf-top-distrib-training), we demonstrated a step-by-step process on how to distribute training of machine learning models using  [Kubeflow Traing Operator](https://www.kubeflow.org/docs/components/training/). Here will demonstrate a simple Kubeflow pipeline example. We will deploy and test it in AKS. So, we will use Azure CLI commands with kubectl commands to control the Azure Kubernetes Service (AKS) cluster from our console. So, the steps listed here is not completely cloud provider agnostic. We are going to assume that you are going to follow along using AKS. However, you can follow along with any of your preferred cloud provider for the most part with the exception of Azure CLI commands. We will create a GPU nodepool to run our pipeline in GPUs. While it is not necessary to leverage a GPU to run this example we use the GPU so that we can easily extend to run complicated compute intestive model training or executtion later.
