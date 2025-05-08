@@ -4,7 +4,7 @@
 FROM nvcr.io/nvidia/pytorch:24.07-py3
 
 # Set environment variables
-ENV ACR_CONNECTION_STRING="DefaultEndpointsProtocol=https;AccountName=cs210032002d59816f7;AccountKey=U6p0twKuNQ5qGgPG2RvdBvofEMwTdbY+Jtoa7ob8FII+5FBb4kj8wKFhtKlrM3reX+cWm+y59brd+AStzS7slg==;EndpointSuffix=core.windows.net"
+ENV ACR_CONNECTION_STRING="PUT YOUR STOGRAGE CONNECTION STRING"
 ENV ACR_CONTAINER_NAME="models"
 ENV ACR_BLOB_NAME="<model-name>.pt"
 
