@@ -1,0 +1,24 @@
+# We need to use the nvcr.io/nvidia/pytorch image as a base image to support both linux/amd64 and linux_arm64 platforms.
+# PyTorch=2.2.0, cuda=12.3.2
+# Ref: https://docs.nvidia.com/deeplearning/frameworks/pytorch-release-notes/rel-24-01.html#rel-24-01
+FROM nvcr.io/nvidia/pytorch:24.07-py3
+
+# Set environment variables
+ENV ACR_CONNECTION_STRING="DefaultEndpointsProtocol=https;AccountName=cs210032002d59816f7;AccountKey=U6p0twKuNQ5qGgPG2RvdBvofEMwTdbY+Jtoa7ob8FII+5FBb4kj8wKFhtKlrM3reX+cWm+y59brd+AStzS7slg==;EndpointSuffix=core.windows.net"
+ENV ACR_CONTAINER_NAME="models"
+ENV ACR_BLOB_NAME="<model-name>.pt"
+
+RUN pip install kfp
+RUN pip install kfp-kubernetes
+RUN pip install --no-cache-dir azure-storage-blob
+RUN mkdir -p /opt/kfp_pipeline/
+
+WORKDIR /opt/kfp_pipeline/src
+ADD model_evaluate.py /opt/kfp_pipeline/src/model_evaluate.py
+
+
+RUN chgrp -R 0 /opt/kfp_pipeline \
+    && chmod -R g+rwX /opt/kfp_pipeline 
+
+ENTRYPOINT ["python", "/opt/kfp_pipeline/src/mnist.py", "--output-path", "/opt/kfp_pipeline/"]
+
