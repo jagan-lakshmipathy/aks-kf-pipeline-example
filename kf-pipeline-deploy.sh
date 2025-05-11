@@ -1,8 +1,8 @@
 #!/bin/zsh
 
-RG_NAME="jagan-aks-05052025-rg"
-CLSTR_NAME="jagan-aks-05052025-cluster"
-ACR_NAME="jaganacr05052025"
+RG_NAME="jagan-aks-05112025-rg"
+CLSTR_NAME="jagan-aks-05112025-cluster"
+ACR_NAME="jaganacr05112025"
 
 MODEL_NAME="mnist"
 TRAINING_COMP=$MODEL_NAME"-trainer"
@@ -234,7 +234,15 @@ for var in "${COMP_LIST[@]}"; do
 
 done
 
-    
+# Resolve the actual file names first
+PY_MNIST_PIPELINE_TEMPLATE_FILE="template_mnist_pipeline2.py"
+PY_MNIST_PIPELINE_FILE="mnist_pipeline2.py"
+
+
+# Use sed to replace "<my-acr>" with the replacement value
+sed -e "s|<my-acr>|${ACR_NAME}|g" \
+    "${PY_MNIST_PIPELINE_TEMPLATE_FILE}" > "${PY_MNIST_PIPELINE_FILE}"
+ 
 # Resolve the actual file names first
 docker_file="Dockerfile.pipeline"
 
