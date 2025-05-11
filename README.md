@@ -3,108 +3,256 @@
 ###### 05/08/2025
 
 ### 1. Introduction
-In one of our earlier [work](https://github.com/jagan-lakshmipathy/aks-kf-top-distrib-training), we demonstrated a step-by-step process on how to distribute training of machine learning models using  [Kubeflow Traing Operator](https://www.kubeflow.org/docs/components/training/). Here will demonstrate a simple Kubeflow pipeline example. We will deploy and test it in AKS. So, we will use Azure CLI commands with kubectl commands to control the Azure Kubernetes Service (AKS) cluster from our console. So, the steps listed here is not completely cloud provider agnostic. We are going to assume that you are going to follow along using AKS. However, you can follow along with any of your preferred cloud provider for the most part with the exception of Azure CLI commands. We will create a GPU nodepool to run our pipeline in GPUs. While it is not necessary to leverage a GPU to run this example we use the GPU so that we can easily extend to run complicated compute intestive model training or executtion later.
+
+In our earlier [work](https://github.com/jagan-lakshmipathy/aks-kf-top-distrib-training), we demonstrated a step-by-step process for distributing machine learning model training using the [Kubeflow Training Operator](https://www.kubeflow.org/docs/components/training/).
+In this repository, we present a simple example of a Kubeflow pipeline. The pipeline will be deployed and tested on Azure Kubernetes Service (AKS), using a combination of Azure CLI and kubectl commands to manage the cluster from the console.
+
+Please note that the steps outlined here are not entirely cloud-agnostic, as they include Azure-specific commands. However, the general workflow can be adapted to other cloud providers with minimal changes—primarily replacing the Azure CLI steps.
+
+We will also create a GPU-enabled node pool to execute the pipeline on GPUs. While a GPU is not required to run this example, using one allows us to easily scale the pipeline later for more compute-intensive model training or execution.
 
 ### 2. Prerequesites
-While we don't expect you to have reviewed our earlier work for you to follow along this example, We assume that you have a good understanding of Azure. If you would like to read about Azure please go [here](https://azure.microsoft.com/en-us/get-started). If you haven't done already installed Azure CLI, do install it as instructed in this [link](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli).
 
-We refer you to learn about Azure Kubernetes Service (AKS) from [here](https://learn.microsoft.com/en-us/azure/aks/learn/quick-kubernetes-deploy-portal?tabs=azure-cli). Also we refer to [here](https://learn.microsoft.com/en-us/azure/aks/learn/quick-kubernetes-deploy-portal?tabs=azure-cli) on how to request vCPU quotas from azure portal. If you would like to learn about different compute options in Azure please review this [link](https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/overview?tabs=breakdownseries%2Cgeneralsizelist%2Ccomputesizelist%2Cmemorysizelist%2Cstoragesizelist%2Cgpusizelist%2Cfpgasizelist%2Chpcsizelist). In this example we will use two types of vCPUs Standard\_D4ds\_v5 and Standard\_NC40ads\_H100\_v5. We will use the D4ds\_v5 CPUs to run the kubernetes system workloads and NC40ads\_H100\_v5 CPUs to run the GPU workloads. Steps involved in requesting any other vCPUs with GPU will be very similar. In our example we run a simple Machine Learning example on the GPU.  We assume you have a reasonable understanding of Azure Cloud Platform. We are also assume you have a fairly good understanding of Kubernetes. Please do find the Kubernetes reading material from [here](https://kubernetes.io/docs/setup/). We assume that you also have a fairly good working knowledge of github. Please clone this [repo](www.github.com) to your local. Install kubectl, kubernetes cli tool, from [here](https://kubernetes.io/docs/tasks/tools/).
+You don’t need to review our earlier work to follow this example, but we do assume that you have a solid understanding of Microsoft Azure. If you're new to Azure, you can get started [here](https://azure.microsoft.com/en-us/get-started).
 
-We will be using MacOS to run the kubernetes commands and Azure CLI commands using bash shell. You can follow along with your prefered host, operating system and shell.
+Ensure that you have the Azure CLI installed. If not, follow the instructions in this [guide](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli).
 
-### 3. What's in this Repo?
-This repo has a docker file that builds from a PyTorch 24.07 [base iamge](https://docs.nvidia.com/deeplearning/frameworks/pytorch-release-notes/rel-24-07.html) from NVidia and runs a simple Kubeflow pipeline with a simple component. This simple pipeline is provided in a python file component\_with\_optional\_inputs.py. This python file we grabbed it from Kubeflow [samples](https://github.com/kubeflow/pipelines/blob/master/samples/v2/component_with_optional_inputs.py). We have also checked in a manifest pipeline-example.yaml that we used to deploy the pipeline.  We discuss these files in detail in our coming sections here.
+We also recommend reviewing the basics of [Azure Kubernetes Service (AKS)](https://learn.microsoft.com/en-us/azure/aks/learn/quick-kubernetes-deploy-portal?tabs=azure-cli) If you're planning to request vCPU quotas (necessary for certain VM types), refer to the same AKS guide for quota request instructions.
 
+To better understand compute options in Azure, including GPU-based instances, see the [Azure VM sizes documentation](https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/overview?tabs=breakdownseries%2Cgeneralsizelist%2Ccomputesizelist%2Cmemorysizelist%2Cstoragesizelist%2Cgpusizelist%2Cfpgasizelist%2Chpcsizelist).
+
+In this example, we use two Azure VM types:
+
+* Standard_D4ds_v5: for Kubernetes system workloads.
+
+* Standard_NC40ads_H100_v5: for GPU-based workloads.
+
+The steps required to request quotas and configure other GPU-enabled VM types are similar.
+
+We will run a simple machine learning example on the GPU node pool. A general familiarity with Azure and Kubernetes is assumed. If you're new to Kubernetes, start with the official [Kubernetes documentation](https://kubernetes.io/docs/home/).
+
+You should also have a working knowledge of Git and GitHub. Clone this repository to your local machine:
+
+```
+    bash>   git clone https://github.com/jagan-lakshmipathy/aks-kf-pipeline-example.git
+```
+Make sure you have kubectl (Kubernetes CLI) installed. Follow the instructions here[here](https://kubernetes.io/docs/tasks/tools/) to install it.
+
+This guide uses macOS and Bash to run Azure CLI and kubectl commands, but you can follow along on any operating system and shell of your choice.
+
+### 3. What's in this Repository?
+
+This repository provides an end-to-end example of building and deploying a simple Kubeflow pipeline using a Docker image based on the[NVIDIA PyTorch 24.07 base iamge](https://docs.nvidia.com/deeplearning/frameworks/pytorch-release-notes/rel-24-07.html).
+
+It includes all the necessary components and templates required to build container images, define the pipeline, and deploy it to an AKS cluster. The main deployment logic is encapsulated in the kf-pipeline-deploy.sh script, which ties everything together.
+Key components include:
+
+Key Files:
+
+1. kf-pipeline-deploy.sh – A Zsh script that automates the end-to-end deployment of the pipeline.
+
+2. template_mnist_pipeline2.py – A pipeline template script where the Azure Container Registry (ACR) URL is injected to generate the actual mnist_pipeline2.py.
+
+3. Dockerfile.mnist-trainer.template – Template Dockerfile used to build the trainer component.
+
+4. Dockerfile.mnist-evaluator.template – Template Dockerfile used to build the evaluator component.
+
+5. Dockerfile.pipeline – Dockerfile used to build the main pipeline image.
+
+6. mnist.py – Python script for the training component.
+
+7. model_evaluate.py – Python script for the model evaluation component.
+
+8. nvidia-device-plugin-ds.yaml – Kubernetes manifest to enable NVIDIA GPU support on cluster nodes.
+
+9. template-pipeline-deployment.yaml – A deployment template used to generate pipeline-deployment.yaml, which is applied to deploy the pipeline.
+
+Together, these files form a functional baseline for running PyTorch-based machine learning workloads on Kubeflow, and can be extended for more complex workflows.
+
+In the next steps, we’ll walk through the kf-pipeline-deploy.sh script in detail to understand how it orchestrates the deployment process.
 
 ### 4. Authenticate Your Console
-We assume that the kubernetes cluster is up and running. We will do the following two steps to prepare our console to be authenticated to interact with the AKS cluster remotely.
+We assume that your Kubernetes cluster on AKS is already up and running. To interact with it from your local console, you'll need to complete the following two steps:
 
-1. Login to your Azure Portal and make sure the kubernetes cluster is up and running.You can also check the cluster from your bash console. For that to work we need to have the *kubectl* working. So go to Step 2, before you try out any *kubectl* commands.
+#### 1. Verify the AKS Cluster
+Log in to your [Azure Portal](portal.azure.com) and ensure that your AKS cluster is active. Alternatively, you can verify this from your terminal using kubectl—but only after completing Step 2 to configure your local access.
 
-2. In order to issue kubectl commands to control AKS cluster from your local console we need to merge the credentials with the local kube config. Kubernetes config file is typically located under /Users/\<username\>/.kube/config in MacOS. The following azure cli command would merge the config. The second command lets you see the running pods in the cluster:
+#### 2. Merge AKS Credentials with Local Kubeconfig
+To issue kubectl commands against your AKS cluster from your local machine, you need to merge the cluster credentials into your local Kubernetes configuration file (typically located at ~/.kube/config on macOS).
 
+Run the following Azure CLI command to do so (see line 36 of kf-pipeline-deploy.sh):
 ```
     bash> az aks get-credentials --resource-group <resource-group-name> --name <aks-cluster-name>
+```
+You can now verify connectivity by listing the running pods:
+```
     bash> kubectl get pods --watch
+```
+This will stream the status of pods in the default namespace.
+
+### 5. Install Azure CLI Extensions
+Before proceeding with the deployment, you’ll need to install a specific version of the Azure CLI aks-preview extension. We observed issues with the latest version, so we recommend reverting to a stable version (14.0.0b3) that has been verified to work with this setup. You can refer to lines 24–31 in the kf-pipeline-deploy.sh script for context.
+
+Run the following commands in your terminal:
+```
+    bash>   az extension remove --name aks-preview
+    bash>   az extension add --name aks-preview --version 14.0.0b3
+    bash>   az extension show --name aks-preview
+```
+These commands will ensure you're using the expected version of the extension for compatibility with AKS features used in this project.
+### 6. Add GPU nodepool to AKS Cluster
+
+Although this example doesn't require a GPU, we provision a GPU-enabled node pool to support future extensions involving more complex or compute-intensive workloads.
+
+In this step, we add a new GPU node pool with 3 nodes. You can choose any GPU-enabled VM size from the [Azure offerings](https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/overview?tabs=breakdownseries%2Cgeneralsizelist%2Ccomputesizelist%2Cmemorysizelist%2Cstoragesizelist%2Cgpusizelist%2Cfpgasizelist%2Chpcsizelist#gpu-accelerated) based on your available quota. For example, we tested with the following SKUs:
+
+Standard_NC24s_v3 from the NCv3-series
+
+Standard_NC40ads_H100_v5 from the NCads H100 v5-series
+
+Below is the command used to create a node pool of up to 3 nodes, each with 40 vCPUs and an H100 GPU. You can modify the --node-vm-size, --min-count, and --max-count values as needed for your workload (see lines 54 through 56 in the kf-pipeline-deploy.sh):
+```
+    bash> az aks nodepool add \
+            --resource-group $RG_NAME \
+            --cluster-name $CLSTR_NAME \
+            --name gpunp \
+            --node-count 1 \
+            --node-vm-size Standard_NC6s_v3 \
+            --node-taints sku=gpu:NoSchedule \
+            --enable-cluster-autoscaler \
+            --min-count 1 \
+            --max-count 3
+
+```
+This command also applies a taint to the nodes (sku=gpu:NoSchedule) to restrict scheduling only to pods that tolerate this taint—ensuring GPU nodes are used only when explicitly required.
+
+### 7. Install Kubeflow Pipelines on AKS
+We will now install Kubeflow Pipelines (version 2.3.0) on our AKS cluster (see lines 88 through 92 for context). This setup uses the platform-agnostic configuration recommended by the Kubeflow community to ensure compatibility with AKS (as opposed to GKE-specific configurations).
+
+Run the following commands to install:
+```
+    bash> export PIPELINE_VERSION=2.3.0
+
+    bash> kubectl apply --kustomize="github.com/kubeflow/pipelines/manifests/kustomize/cluster-scoped-resources?ref=${PIPELINE_VERSION}"
+
+    bash> kubectl wait crd/applications.app.k8s.io --for=condition=established --timeout=60s
+
+    bash> kubectl apply --kustomize="github.com/kubeflow/pipelines/manifests/kustomize/env/platform-agnostic?ref=${PIPELINE_VERSION}"
 
 ```
 
+Note: The third command replaces the standard GKE-specific installation step with a platform-agnostic alternative, as discussed here.
 
+Please be patient—initialization may take several minutes. Some pods may briefly fail during startup but should self-heal and stabilize on their own.
 
-### 5. Register Microsoft Container Service
-We will issue the following Azure CLI commands to register the container service.
-```
-    bash>   az extension add --name aks-preview
-    bash>   az extension update --name aks-preview
-
-    bash>   az feature register --namespace "Microsoft.ContainerService" --name "GPUDedicatedVHDPreview"
-    bash>   az feature show --namespace "Microsoft.ContainerService" --name "GPUDedicatedVHDPreview"
-    bash>   az provider register --namespace Microsoft.ContainerService
-
-```
-### 6. Add nodepool to AKS Cluster
-
-As mentioned before, we don't need a GPU for this example. However, for complex workloads we may need GPUs. So, we create a nodepool with 3 nodes(check Azure documentation to see the Azure's latest offering). You can choose any GPU loaded vCPU from Azure offering that you are eligible to request as per your quota requirements. I tried these GPU loaded nodes Standard\_NC24s\_v3, and Standard\_NC40ads\_H100\_v5 from the NCv3-series and NCads H100 v5-series familes respectively. But the following command adds 3 40 core vCPU with 1 H100 GPU each. We can adjust the min and max counts depending on your workload. We picked a min of 1 and max of 3. This command also taints the nodes with key and value with 'sku' and 'gpu' respectively.
-
-```
-    bash> az aks nodepool add --resource-group <name-of-resource-group> --cluster-name <cluster-name> --name <nodepool-name> --node-count 2 --node-vm-size Standard_NC40ads_H100_v5 --node-taints sku=gpu:NoSchedule --aks-custom-headers UseGPUDedicatedVHD=true --enable-cluster-autoscaler --min-count 1 --max-count 3
-
-```
-
-### 7. Create a Azure Container Registry
-We need to store the container image of the Simple Pipeline in component\_with\_optional\_inputs.py. We create an Azure Container Registry (ACR) to push your image as follows.
+### 8. Create an Azure Container Registry (ACR)
+To store the container image for the simple pipeline defined in component_with_optional_inputs.py, you’ll need to create an Azure Container Registry (ACR). Use the following command (see lines 93 through 112 in the kf-pipeline-deploy.sh):
 
 ```
     bash> az acr create --name <name-of-acr> --resource-group <resource-group-associated> --sku basic
 ```
+Replace \<acr-name\> and \<resource-group-name\> with your desired ACR name and the resource group it's associated with.
 
 ### 8. Login to ACR
-Now lets login to the ACR before you can upload any images to ACR.
+Before pushing any images to ACR, you need to log in (see lines 168 through 198):
 
 ```
     bash> az acr login --name <name-of-acr>
 ```
+This step authenticates your local Docker client with the Azure Container Registry, allowing you to push and pull container images.
 
-### 9. Create Workload Image Locally
-Let's create a docker images that we would like to run as a GPU workload. This repo contains a dockerfile named Dockerfile.ce. At line # 4, this docker file pulls a PyTorch container base image from NVIDIA. Tag 24.07-py3 is the latest available at the time of this writing. This container image contains the complete source of the version of PyTorch in /opt/pytorch. It is a prebuild and installed in the default environment (/usr/local/lib/python3.10/dist-packages/torch). This container also includes the following pacakges: (a) Pyton 3.10, (b) CUDA, (c) NCCL backend, (d) JupyterLab and beyond. Please look at this link for more details [here](https://docs.nvidia.com/deeplearning/frameworks/pytorch-release-notes/rel-24-07.html). This docker file also copies component\_with\_optional\_inputs.py from current directory to working directory. The component\_with\_optional\_inputs.py is a python file with a simple pipeline with a simple component. At line # 15 in the docker file we execute this python file. Please free to review the python file. In the main, we execute the pipeline at line # 45 using the Kubeflow Pipeline client.
+### 9.  Install NVIDIA Device Plugin
+To enable GPU support within your AKS cluster, apply the NVIDIA device plugin. This plugin ensures that Kubernetes can detect and schedule workloads on GPU-enabled nodes.
+
+(Refer to lines 200–202 in the deployment script.)
 
 ```
-    bash> docker build  --platform="linux/amd64"  -t pipeline-example:1.0 .
+    bash> kubectl create namespace gpu-operator
+    bash> kubectl apply -f nvidia-device-plugin-ds.yaml
 ```
+### 10. Build, Tag, and Push Component Images
 
-### 10. Tag and push the image to ACR
-Now that we have created an image in the local registry, we need to push this image to the ACR before it can be run in the AKS. First, we need to tag the image and then we push the tagged image to an already created ACR. The following are the commands in that order.
+We now create and push Docker images for each component defined in the COMP_LIST array. This process is automated through a script that performs the following steps for each component (e.g., mnist-trainer, mnist-evaluator):
+
+#### 10.1 Create Workload Image Locally
+For each component:
+
+* A Dockerfile is dynamically generated from a corresponding template file (e.g., Dockerfile.mnist-trainer.template), replacing placeholders like \<my-acr\> and \<model-name\> with actual environment variable values.
+
+* The resulting Dockerfile (e.g., Dockerfile.mnist-trainer) is used to build a Docker image locally.
+
+Additionally, this repository includes a special Dockerfile named Dockerfile.ce, used to build a GPU workload image. It pulls the NVIDIA PyTorch base image tagged 24.07-py3, which includes:
+* Python 3.10
+* CUDA Toolkit
+* NCCL backend
+* JupyterLab
+* A prebuilt and installed version of PyTorch (located at /usr/local/lib/python3.10/dist-packages/torch)
+* The full PyTorch source located in /opt/pytorch
+
+
+The image also includes component_with_optional_inputs.py, a simple Kubeflow pipeline component. This script is copied into the image and executed at build time (line #15 in the Dockerfile). The pipeline itself is launched at line #45 using the Kubeflow Pipelines client.
 ```
-    bash> docker tag pipline-example:1.0 <acr-name>.azurecr.io/pipeline-example:latest
-    bash> docker push <acr-name>.azurecr.io/pipeline-example:latest
+    Refer to lines 255–258 of the deployment script for this context.
 ```
+Build the Docker image using:
+```
+    docker build --platform="linux/amd64" -t "kubeflow/${comp_value}:1.0" .
+```
+Ensure you’re in the correct directory containing the Dockerfile and the Python script.
+
+#### 10.2. Tag and push the image to ACR
+After building the image, tag and push it to your Azure Container Registry so it can be pulled by your AKS cluster.
+##### 1. Tag the image:
+```
+    docker tag pipline-example:1.0 <acr-name>.azurecr.io/pipeline-example:latest
+```
+##### 2. Push the image:
+```
+    docker push <acr-name>.azurecr.io/pipeline-example:latest
+```
+Replace \<acr-name\> with your actual ACR name.
+
+This repeatable and automated approach ensures all pipeline components are built, tagged, and pushed consistently—simplifying deployment across environments.
 
 ### 11. Attach the ACR to the AKS Cluster
-Now that we have pushed the image to the ACR, we have to now attach that ACR to the cluster so that our job can access the ACR to pull the image from. We use the following command.
+After pushing the Docker image to your Azure Container Registry (ACR), you need to grant your AKS cluster permission to pull images from it. This is done by attaching the ACR to your AKS cluster using the following Azure CLI command:
 
 ```
-    bash> az aks update --name <aks-cluster-name> --resource-group <aks-rg-name>  --attach-acr <name-of-acr-to-attach>
-```
-
-### 12. Install Kubeflow Training Operator
-We will install the Pipeline in AKS using the following commands. We are installing the Pipline version 2.3.0. The third step is different from the Kubeflow Pipline installation step outlined in the documentation. This change is necessary as we are runnng in AKS (not GKS). We use the platform agnostic changes as recommended [here](https://github.com/kubeflow/pipelines/issues/9546).
-```
-bash> export PIPELINE_VERSION=2.3.0
-bash> kubectl apply --kustomize="github.com/kubeflow/pipelines/manifests/kustomize/cluster-scoped-resources?ref=${PIPELINE_VERSION}"
-bash> kubectl wait crd/applications.app.k8s.io --for=condition=established --timeout=60s
-bash> kubectl apply --kustomize="github.com/kubeflow/pipelines/manifests/kustomize/env/platform-agnostic?ref=${PIPELINE_VERSION}"
-```
-
-Kubeflow Pipeline installation may take a few minutes depending on how long it takes to initialize the pods. Sometimes, some pods may fail in the process but they will self heal and eventually will stabilize.
-
-### 13. Job Manifest
-In this repo, we have provided a manifest named pipeline-example.yaml. The image is specfied under Job.spec.template.spec.image path. Two things are worth mentioning in this manifest. Kubeflow pipeline requires root authentication. See [here](https://www.kubeflow.org/docs/components/pipelines/concepts/pipeline-root/) to understand the concepts of pipeline root. We can adjust the Pod efinition to mount ServiceAccount token volume that can be used to authenticate with the Kubeflow Pipelines API. We have defined Job.spec.template.spec.volumes and  Job.spec.template.spec.containers.volumeMounts to project the serviceAccountToken as described [(here)](https://www.deploykf.org/user-guides/access-kubeflow-pipelines-api/).
-
-### 14. Deploy Job
-We deploy the job as follows.  
+    bash> az aks update \
+            --name <aks-cluster-name> \
+            --resource-group <aks-rg-name> \
+            --attach-acr <acr-name>
 
 ```
-    kubectl apply -f pipeline-example.yaml
+Replace \<aks-cluster-name\>, \<aks-rg-name\>, and \<acr-name\> with the appropriate values for your setup. Once attached, your Kubernetes workloads running in AKS can securely pull images from your ACR without additional authentication steps.
+
+### 12. Build and Deploy MNIST Pipeline Image
+
+This section automates the final steps required to build, tag, push, and prepare the deployment manifest for the MNIST pipeline in AKS.
+
+#### 12.1 Generate the Python Pipeline Script
+We begin by dynamically generating the mnist_pipeline2.py file from the template_mnist_pipeline2.py template. The script replaces the placeholder \<my-acr\> with the actual Azure Container Registry (ACR) name, ensuring the pipeline references the correct container registry.
+
+#### 12.2 Build, Tag, and Push the Pipeline Image
+A Docker image is built using Dockerfile.pipeline, tagged with the pipeline name, and then pushed to the specified ACR. This makes the image available for use by the Kubeflow Pipeline running in AKS. The process includes:
+
+* Building the Docker image for the pipeline logic
+* Tagging it with the latest version
+* Pushing it to your ACR
+
+Each step includes checks to ensure required values and files are set, improving reliability and preventing misconfigurations (See the lines between 284 in kf-pipeline-deploy.sh for details)
+
+#### 12.3 Generate Deployment YAML from Template
+Finally, a deployment manifest YAML file is generated from its corresponding template. Placeholders such as \<my-acr\> and \<pipeline-name\> are replaced using sed to match your environment. The resulting YAML file can be used to deploy the Kubeflow pipeline to the AKS cluster.
+
+This end-to-end automation ensures consistent and repeatable builds and deployments for your Kubeflow pipeline components.
+
+
+### 13. Deploy Job
+We deploy the job as follows. Feel free to review the provided template-pipeline-deployment.yaml to understand manifest.
+
+```
+    kubectl apply -f pipeline-deployment.yaml
 ```
 Issue the following command to the port forwarding of UI. Use your browser to check if the UI is running. 
 
